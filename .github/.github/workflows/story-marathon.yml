@@ -1,0 +1,31 @@
+name: Story Marathon Bot
+on:
+  schedule:
+    - cron: '*/25 * * * *'  # Every 25min = 58 runs/day
+  workflow_dispatch:  # Manual trigger
+jobs:
+  marathon:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - name: Install dependencies
+      run: |
+        pip install selenium beautifulsoup4 requests lxml fake-useragent
+        sudo apt-get update
+        sudo apt-get install -y wget unzip xvfb
+        wget -q -O /tmp/chromedriver.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.71/linux64/chromedriver-linux64.zip
+        unzip /tmp/chromedriver.zip -d /tmp/
+        sudo mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/
+        sudo chmod +x /usr/local/bin/chromedriver
+    - name: Run Story Marathon
+      env:
+        EMAIL: ${{ secrets.EMAIL }}
+        PASSWORD: ${{ secrets.PASSWORD }}
+      run: |
+        export DISPLAY=:99
+        sudo Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+        python bot.py
