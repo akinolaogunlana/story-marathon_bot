@@ -1,31 +1,45 @@
-name: Story Marathon Bot
+name: Story Marathon Bot v11.1
 on:
   schedule:
-    - cron: '*/25 * * * *'  # Every 25min = 58 runs/day
-  workflow_dispatch:  # Manual trigger
+    - cron: '*/25 * * * *'  # 58 runs/day
+  workflow_dispatch:
 jobs:
   marathon:
     runs-on: ubuntu-latest
+    timeout-minutes: 50  # 120 stories × 210s + overhead
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python
+    
+    - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    - name: Install dependencies
+    
+    - name: Install Python deps
+      run: pip install selenium beautifulsoup4 requests lxml fake-useragent
+    
+    - name: Setup Chrome + Chromedriver 120
       run: |
-        pip install selenium beautifulsoup4 requests lxml fake-useragent
-        sudo apt-get update
-        sudo apt-get install -y wget unzip xvfb
+        sudo apt-get update -qq
+        sudo apt-get install -y wget unzip xvfb libnss3 libgconf-2-4 xvfb
+        # Chrome 120 stable
+        wget -q -O /tmp/chrome.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.71/linux64/chrome-linux64.zip
+        unzip /tmp/chrome.zip -d /tmp/chrome
+        sudo mv /tmp/chrome/chrome-linux64/chrome /usr/local/bin/chrome
+        sudo chmod +x /usr/local/bin/chrome
+        
+        # Matching chromedriver
         wget -q -O /tmp/chromedriver.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.71/linux64/chromedriver-linux64.zip
         unzip /tmp/chromedriver.zip -d /tmp/
         sudo mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/
         sudo chmod +x /usr/local/bin/chromedriver
-    - name: Run Story Marathon
+    
+    - name: ✅ Run Story Marathon Bot
       env:
         EMAIL: ${{ secrets.EMAIL }}
         PASSWORD: ${{ secrets.PASSWORD }}
       run: |
         export DISPLAY=:99
         sudo Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-        python bot.py
+        sleep 2
+        python bot.py  # ← FIXED: was cloud_bot.py
