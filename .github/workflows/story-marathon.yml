@@ -1,0 +1,49 @@
+name: StoryMinta Bot v12.1
+on:
+  schedule:
+    - cron: '*/25 * * * *'  # Every 25min
+  workflow_dispatch:
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install Python packages
+      run: |
+        pip install selenium==4.15.2 beautifulsoup4 requests lxml fake-useragent
+    
+    - name: Install Chrome & Driver
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget unzip xvfb libnss3 libgconf-2-4
+        
+        # Chrome Stable 120
+        wget -q -O chrome.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.71/linux64/chrome-linux64.zip
+        unzip chrome.zip
+        sudo mv chrome-linux64/chrome /usr/local/bin/chrome
+        sudo chmod +x /usr/local/bin/chrome
+        
+        # Chromedriver 120
+        wget -q -O chromedriver.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.71/linux64/chromedriver-linux64.zip
+        unzip chromedriver.zip
+        sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
+        sudo chmod +x /usr/local/bin/chromedriver
+    
+    - name: 🏃 Run Bot - STAYS LOGGED IN
+      env:
+        EMAIL: ${{ secrets.EMAIL }}
+        PASSWORD: ${{ secrets.PASSWORD }}
+      run: |
+        export DISPLAY=:99
+        Xvfb :99 -screen 0 1920x1080x24 &
+        sleep 3
+        
+        # ✅ CORRECT FILENAME
+        python bot.py
