@@ -1,4 +1,4 @@
-name: StoryMinta Bot v12.4 ✓✓
+name: StoryMinta Bot v12.5 ✓✓✓
 on:
   schedule:
     - cron: '*/25 * * * *'
@@ -10,26 +10,28 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Python 3.11
+    - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
-    - name: pip install
-      run: pip install selenium beautifulsoup4 requests lxml fake-useragent
+    - name: Install deps (Auto Chrome Driver)
+      run: |
+        pip install selenium beautifulsoup4 requests lxml fake-useragent webdriver-manager
     
-    - name: ✅ Chromium + Auto Driver (ZERO FAIL)
-      uses: nanasess/setup-chromedriver@v2
+    - name: Test files exist
+      run: |
+        ls -la bot.py
+        cat bot.py | head -20
     
-    - name: 🏃 Bot - Login → 120 stories × 3:30
+    - name: 🚀 Run Bot
       env:
         EMAIL: ${{ secrets.EMAIL }}
         PASSWORD: ${{ secrets.PASSWORD }}
       run: |
         export DISPLAY=:99
-        sudo apt-get install -y xvfb
+        sudo apt-get update -qq
+        sudo apt-get install -y xvfb chromium-browser
         Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
         sleep 3
-        
-        ls -la bot.py
         python bot.py
