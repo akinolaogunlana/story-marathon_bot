@@ -1,4 +1,4 @@
-name: StoryMinta Bot v12.3 ✓
+name: StoryMinta Bot v12.4 ✓✓
 on:
   schedule:
     - cron: '*/25 * * * *'
@@ -10,47 +10,26 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup Python
+    - name: Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
-    - name: Install Python deps
-      run: pip install selenium==4.15.2 beautifulsoup4 requests lxml fake-useragent
+    - name: pip install
+      run: pip install selenium beautifulsoup4 requests lxml fake-useragent
     
-    - name: ✅ Setup SYSTEM Chrome + Driver
-      run: |
-        # Update system
-        sudo apt-get update -qq
-        
-        # Install Google Chrome (stable)
-        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-        sudo apt-get update -qq
-        sudo apt-get install -y google-chrome-stable
-        
-        # Matching chromedriver
-        CHROME_VER=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+')
-        wget -q -O /tmp/chromedriver.zip "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VER}/linux64/chromedriver-linux64.zip"
-        unzip /tmp/chromedriver.zip -d /tmp/
-        sudo mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/
-        sudo chmod +x /usr/local/bin/chromedriver
-        
-        # Verify
-        google-chrome --version
-        chromedriver --version
+    - name: ✅ Chromium + Auto Driver (ZERO FAIL)
+      uses: nanasess/setup-chromedriver@v2
     
-    - name: 🚀 Bot - Login → 3:30/story → Session Persistent
+    - name: 🏃 Bot - Login → 120 stories × 3:30
       env:
         EMAIL: ${{ secrets.EMAIL }}
         PASSWORD: ${{ secrets.PASSWORD }}
       run: |
         export DISPLAY=:99
-        sudo Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-        sleep 5
+        sudo apt-get install -y xvfb
+        Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+        sleep 3
         
-        cd $(pwd)
-        ls -la bot.py  # Verify file exists
-        
-        echo "=== BOT START ==="
+        ls -la bot.py
         python bot.py
