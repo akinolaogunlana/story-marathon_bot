@@ -1,7 +1,7 @@
-name: StoryMinta Bot v12.1
+name: StoryMinta Bot v12.2
 on:
   schedule:
-    - cron: '*/25 * * * *'  # Every 25min
+    - cron: '*/25 * * * *'
   workflow_dispatch:
 jobs:
   bot:
@@ -10,40 +10,45 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup Python
+    - name: Setup Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
-    - name: Install Python packages
-      run: |
-        pip install selenium==4.15.2 beautifulsoup4 requests lxml fake-useragent
+    - name: Install deps
+      run: pip install selenium==4.15.2 beautifulsoup4 requests lxml fake-useragent
     
-    - name: Install Chrome & Driver
+    - name: ✅ Setup Chrome 121 + Driver (FIXED)
       run: |
-        sudo apt-get update
-        sudo apt-get install -y wget unzip xvfb libnss3 libgconf-2-4
+        # Update & install deps
+        sudo apt-get update -qq
+        sudo apt-get install -y wget unzip xvfb libnss3 libgconf-2-4 libxss1 libasound2
         
-        # Chrome Stable 120
-        wget -q -O chrome.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.71/linux64/chrome-linux64.zip
-        unzip chrome.zip
+        # Chrome 121.0.6167.85 (stable)
+        CHROME_URL="https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/121.0.6167.85/linux64/chrome-linux64.zip"
+        wget -q -O chrome.zip "$CHROME_URL"
+        unzip -q chrome.zip
         sudo mv chrome-linux64/chrome /usr/local/bin/chrome
         sudo chmod +x /usr/local/bin/chrome
         
-        # Chromedriver 120
-        wget -q -O chromedriver.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.71/linux64/chromedriver-linux64.zip
-        unzip chromedriver.zip
+        # MATCHING Chromedriver 121
+        DRIVER_URL="https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/121.0.6167.85/linux64/chromedriver-linux64.zip"
+        wget -q -O chromedriver.zip "$DRIVER_URL"
+        unzip -q chromedriver.zip
         sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
         sudo chmod +x /usr/local/bin/chromedriver
+        
+        chromedriver --version
+        chrome --version
     
-    - name: 🏃 Run Bot - STAYS LOGGED IN
+    - name: 🚀 Run Bot (STAYS LOGGED IN)
       env:
         EMAIL: ${{ secrets.EMAIL }}
         PASSWORD: ${{ secrets.PASSWORD }}
       run: |
         export DISPLAY=:99
-        Xvfb :99 -screen 0 1920x1080x24 &
+        sudo Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
         sleep 3
         
-        # ✅ CORRECT FILENAME
+        echo "Starting bot..."
         python bot.py
