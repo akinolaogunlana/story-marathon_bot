@@ -1,37 +1,38 @@
-name: StoryMinta Bot v12.5 ✓✓✓
+name: StoryMinta Bot v13 ✓
+
 on:
   schedule:
-    - cron: '*/25 * * * *'
-  workflow_dispatch:
+    - cron: '*/25 * * * *'   # runs every 25 minutes
+  workflow_dispatch:          # allows manual run
+
 jobs:
   bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Python
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+
+    - name: 🐍 Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    
-    - name: Install deps (Auto Chrome Driver)
+
+    - name: 📦 Install dependencies
       run: |
-        pip install selenium beautifulsoup4 requests lxml fake-useragent webdriver-manager
-    
-    - name: Test files exist
+        python -m pip install --upgrade pip
+        pip install selenium webdriver-manager beautifulsoup4 requests lxml
+
+    - name: 🔍 Verify bot file
       run: |
-        ls -la bot.py
-        cat bot.py | head -20
-    
-    - name: 🚀 Run Bot
+        echo "Checking bot.py exists..."
+        ls -la
+        head -20 bot.py
+
+    - name: 🚀 Run StoryMinta Bot
       env:
         EMAIL: ${{ secrets.EMAIL }}
         PASSWORD: ${{ secrets.PASSWORD }}
       run: |
-        export DISPLAY=:99
-        sudo apt-get update -qq
-        sudo apt-get install -y xvfb chromium-browser
-        Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-        sleep 3
         python bot.py
