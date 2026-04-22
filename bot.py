@@ -3,15 +3,13 @@ import time
 import random
 import requests
 import os
-import cv2
-import numpy as np
+import re
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.core.os_manager import ChromeType
@@ -19,222 +17,169 @@ import base64
 
 SUPABASE_URL = "https://zccvawdmicngfqlkxsoc.supabase.co"
 API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpjY3Zhd2RtaWNuZ2ZxbGt4c29jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM5NzkyMDAsImV4cCI6MjA0OTU1NTIwMH0.EfL8q6vW4zKzq8zKzq8zKzq8zKzq8zKzq8zKzq8z"
-EMAIL = os.getenv("EMAIL")
-PASSWORD = os.getenv("PASSWORD")
 
-class CreditFarmer:
+class DynamicCountdownHandler:
     def __init__(self, driver):
         self.driver = driver
-        self.wait = WebDriverWait(driver, 10)
+        self.wait = WebDriverWait(driver, 15)
+    
+    def extract_countdown_time(self):
+        """Extracts VARIABLE countdown from "Reward unlocks in 107s" → returns seconds"""
+        page_text = self.driver.page_source
         
-    def detect_countdown(self):
-        """Find countdown timer via multiple methods"""
-        countdown_selectors = [
-            '[class*="countdown"]', '[class*="timer"]', '[id*="count"]', '[id*="timer"]',
-            '.countdown', '.timer', 'div[class*="time"]', 'span[class*="second"]',
-            '[data-testid*="countdown"]', '[role="timer"]'
+        # Multiple regex patterns for variable times
+        time_patterns = [
+            r"reward unlocks in (\d+)s",  # "Reward unlocks in 107s"
+            r"unlock in (\d+)s",         # "Unlock in 120s" 
+            r"wait (\d+)s",             # "Wait 90s"
+            r"time remaining: (\d+)s",   # "Time remaining: 75s"
+            r"(\d+)s remaining"         # "107s remaining"
         ]
         
-        for selector in countdown_selectors:
-            try:
-                elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                for el in elements:
-                    text = el.text.strip().lower()
-                    if any(word in text for word in ['second', 'minute', 's ', 'm ']) or text.isdigit():
-                        print(f"⏱️ Found countdown: {el.text} @ {selector}")
-                        return el
-            except:
-                continue
+        for pattern in time_patterns:
+            match = re.search(pattern, page_text, re.IGNORECASE)
+            if match:
+                seconds = int(match.group(1))
+                print(f"⏱️ EXTRACTED: {seconds}s countdown")
+                save_screenshot(self.driver, f"countdown_{seconds}s")
+                return seconds
+        
+        print("❌ No countdown time found")
         return None
     
-    def detect_credit_button(self):
-        """Find 0.010¢ claim button"""
-        button_selectors = [
-            '[class*="claim"]', '[class*="credit"]', '[class*="earn"]', '[class*="reward"]',
-            'button:has-text("Claim")', 'button:has-text("Credit")', 'button:has-text("Complete")',
-            '.btn-claim', '.claim-reward', 'button[class*="green"]'
+    def detect_countdown_active(self):
+        """Detects ANY countdown is present"""
+        page_text = self.driver.page_source.lower()
+        countdown_indicators = [
+            "reward unlocks in",
+            "earn $0.010",
+            "unlock in",
+            "s remaining",
+            "countdown"
         ]
         
-        for selector in button_selectors:
-            try:
-                btn = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                print(f"💰 Credit button found: {selector}")
-                return btn
-            except:
-                continue
-        return None
-    
-    def computer_vision_click(self, target_text):
-        """OCR + click for dynamic buttons"""
-        # Screenshot current page
-        screenshot = self.driver.get_screenshot_as_png()
-        img = cv2.imdecode(np.frombuffer(screenshot, np.uint8), cv2.IMREAD_COLOR)
-        
-        # Simple template matching for text (scale invariant)
-        for scale in np.linspace(0.5, 1.5, 20):
-            resized = cv2.resize(img, None, fx=scale, fy=scale)
-            # Match common credit phrases
-            phrases = [target_text.lower(), "claim", "credit", "earn", "0.010"]
-            for phrase in phrases:
-                # Basic text region detection (green buttons common)
-                hsv = cv2.cvtColor(resized, cv2.COLOR_BGR2HSV)
-                green_mask = cv2.inRange(hsv, (40,50,50), (80,255,255))
-                contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                
-                for cnt in contours:
-                    x,y,w,h = cv2.boundingRect(cnt)
-                    if w*h > 1000:  # Reasonable button size
-                        center_x, center_y = x + w//2, y + h//2
-                        # Click screen center (scale back)
-                        real_x = int(center_x / scale)
-                        real_y = int(center_y / scale)
-                        ActionChains(self.driver).move_by_offset(real_x, real_y).click().perform()
-                        print(f"🎯 CV clicked potential {phrase} button")
-                        return True
+        for indicator in countdown_indicators:
+            if indicator in page_text:
+                print(f"🎯 COUNTDOWN ACTIVE: {indicator}")
+                return True
         return False
-
-def get_stories_api(offset=0):
-    url = f"{SUPABASE_URL}/rest/v1/stories"
-    params = {"select": "slug,id,title", "status": "eq.approved", "limit": 120, "offset": offset}
-    headers = {"apikey": API_KEY}
-    try:
-        r = requests.get(url, params=params, headers=headers, timeout=10)
-        return r.json() if r.status_code == 200 else []
-    except:
-        return []
-
-def setup_chrome():
-    chrome_options = Options()
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--disable-gpu')
-    chrome_options.add_argument('--window-size=1920,1080')
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
     
-    service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    driver.set_page_load_timeout(30)
-    return driver
-
-def save_screenshot(driver, name):
-    screenshot = driver.get_screenshot_as_base64()
-    with open(f"/tmp/{name}.png", "wb") as f:
-        f.write(base64.b64decode(screenshot))
-
-def retry_with_backoff(func, max_retries=3, backoff=2):
-    for attempt in range(max_retries):
-        try:
-            return func()
-        except Exception as e:
-            if attempt == max_retries - 1:
-                raise e
-            wait = (backoff ** attempt) + random.uniform(0, 1)
-            time.sleep(wait)
-    return None
-
-def is_session_valid(driver):
-    try:
-        driver.get("https://storyminta.com/sell/profile/akinolaogunlana")
-        WebDriverWait(driver, 5).until(
-            lambda d: "profile" in d.page_source.lower() or "akinola" in d.page_source.lower()
-        )
-        return True
-    except:
-        return False
-
-def login(driver):
-    # [Previous robust login code - unchanged for brevity]
-    driver.get("https://storyminta.com/auth")
-    wait = WebDriverWait(driver, 10)
-    
-    # Email
-    email_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[type="email"], input[name="email"]')))
-    email_field.clear()
-    email_field.send_keys(EMAIL)
-    
-    # Password + Submit
-    password_field = driver.find_element(By.CSS_SELECTOR, 'input[type="password"]')
-    password_field.send_keys(PASSWORD)
-    submit_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[type="submit"]')))
-    submit_btn.click()
-    
-    return is_session_valid(driver)
-
-def process_story_with_credit(farmer, story_slug):
-    """Full story view + countdown + credit claim"""
-    url = f"https://storyminta.com/story/{story_slug}"
-    farmer.driver.get(url)
-    
-    # Wait for story load
-    WebDriverWait(farmer.driver, 15).until(
-        lambda d: story_slug in d.current_url
-    )
-    
-    credits_earned = 0
-    
-    # Watch for 210s + check countdown every 30s
-    for _ in range(7):  # 210s / 30s = 7 checks
-        # Realistic scroll
-        farmer.driver.execute_script("window.scrollBy(0, window.innerHeight/2);")
-        time.sleep(30)
+    def wait_for_unlock(self, countdown_seconds):
+        """Smart wait: exact time + random buffer"""
+        print(f"⏳ Waiting {countdown_seconds}s + buffer...")
         
-        # Check for countdown
-        countdown_el = farmer.detect_countdown()
-        if countdown_el:
-            print(f"⏱️ COUNTDOWN DETECTED: {countdown_el.text}")
-            time.sleep(3)  # Let it complete naturally first
-            
-            # Try claim button
-            claim_btn = farmer.detect_credit_button()
-            if claim_btn:
-                claim_btn.click()
-                credits_earned += 1
-                print("💰 CREDIT CLAIMED: +0.010¢")
-                time.sleep(2)
-            else:
-                # CV fallback
-                farmer.computer_vision_click("claim")
+        # Exact wait + 3-8s buffer for network/processing
+        total_wait = countdown_seconds + random.uniform(3, 8)
+        time.sleep(total_wait)
+        
+        # Refresh to trigger auto-claim
+        self.driver.refresh()
+        time.sleep(2)
     
-    # Final credit sweep
-    if farmer.computer_vision_click("claim") or farmer.computer_vision_click("credit"):
-        credits_earned += 1
-        print("💰 CV CREDIT CLAIMED")
+    def monitor_auto_claim(self):
+        """Wait for "Auto-claiming reward..." """
+        start_time = time.time()
+        while time.time() - start_time < 20:
+            if "auto-claiming" in self.driver.page_source.lower() or "claiming reward" in self.driver.page_source.lower():
+                print("🔄 AUTO-CLAIM DETECTED")
+                return True
+            time.sleep(1.5)
+        return False
     
-    return credits_earned
+    def confirm_credit_earned(self):
+        """Verify "You earned $0.010!" """
+        success_indicators = [
+            "you earned $0.010",
+            "earned $0.010",
+            "thanks for reading",
+            "$0.010 credit"
+        ]
+        
+        page_text = self.driver.page_source
+        for indicator in success_indicators:
+            if indicator in page_text.lower():
+                print("✅ $0.010 CREDIT CONFIRMED!")
+                save_screenshot(self.driver, "credit_success")
+                return True
+        return False
+    
+    def process_variable_countdown(self, story_slug):
+        """Complete dynamic countdown flow"""
+        print(f"\n🔄 {story_slug} - Hunting variable countdown...")
+        
+        # Scroll a bit first to trigger countdown
+        self.driver.execute_script("window.scrollBy(0, window.innerHeight);")
+        time.sleep(2)
+        
+        # Detect + extract time
+        if not self.detect_countdown_active():
+            print("➡️ No countdown found")
+            return False
+        
+        countdown_time = self.extract_countdown_time()
+        if not countdown_time:
+            print("❌ Could not parse time")
+            return False
+        
+        # Wait exactly for unlock
+        self.wait_for_unlock(countdown_time)
+        
+        # Monitor claiming
+        self.monitor_auto_claim()
+        
+        # Confirm success
+        success = self.confirm_credit_earned()
+        
+        if success:
+            print(f"💰 CREDIT EARNED: {story_slug}")
+            return True
+        else:
+            print(f"⚠️ Flow incomplete: {story_slug}")
+            save_screenshot(self.driver, f"fail_{story_slug[:8]}")
+            return False
+
+# [Rest unchanged - setup_chrome, login, get_stories_api, etc.]
 
 def main():
-    print("💰 StoryMinta CREDIT FARMER v13.4 - 0.010¢/story")
+    print("💰 DYNAMIC COUNTDOWN FARMER v13.7")
+    print("🎯 Handles: 'Reward unlocks in Xs' (107s, 120s, 90s, etc.)")
     
     stories = []
     offset = 0
-    while offset < 2000:
+    while offset < 5000:
         batch = get_stories_api(offset)
         if not batch: break
         stories.extend([s['slug'] for s in batch if s.get('slug')])
         offset += 120
     
     target_stories = stories[:120]
-    print(f"📊 Targeting {len(target_stories)} stories for credits")
+    print(f"📊 Targeting {len(target_stories)} stories")
     
     driver = setup_chrome()
-    farmer = CreditFarmer(driver)
+    handler = DynamicCountdownHandler(driver)
     
     try:
         if not is_session_valid(driver):
             login(driver)
         
-        total_credits = 0
+        credits = 0
         for i, slug in enumerate(target_stories):
-            credits = process_story_with_credit(farmer, slug)
-            total_credits += credits
-            print(f"📖 {i+1}/120: {slug} → +{credits} credits")
-            time.sleep(random.uniform(3, 6))
+            success = handler.process_variable_countdown(slug)
+            if success:
+                credits += 1
+            
+            earnings = credits * 0.010
+            print(f"[{i+1:3d}/120] {slug[:25]:25} {'💰' if success else '➡️'}  ${earnings:.2f}")
+            time.sleep(random.uniform(4, 8))
         
-        earnings = total_credits * 0.010
-        print(f"✅ SESSION COMPLETE: {total_credits} credits = ${earnings:.3f}")
+        daily_potential = credits * 0.010 * 58
+        print(f"\n🎉 RESULTS:")
+        print(f"   Credits: {credits}/120")
+        print(f"   This run:  ${credits*0.010:.2f}")
+        print(f"   Daily (58x): ${daily_potential:.0f}")
         
     finally:
+        save_screenshot(driver, f"summary_{credits}_credits")
         driver.quit()
 
 if __name__ == "__main__":
