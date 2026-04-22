@@ -1,54 +1,25 @@
-name: API Bot v13.1
-
+name: Story Credit PROOF
 on:
-  schedule:
-    - cron: "*/25 * * * *"
-  workflow_dispatch:
+  workflow_dispatch:  # MANUAL ONLY for testing
 
 jobs:
-  bot:
+  proof:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Cache pip (faster builds)
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install selenium beautifulsoup4 requests lxml webdriver-manager fake-useragent opencv-python-headless numpy
-
-      - name: Install Chrome
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget unzip
-          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo apt install -y ./google-chrome-stable_current_amd64.deb
-
-      - name: Run bot (headless)
-        run: |
-          python bot.py
-        env:
-          EMAIL: ${{ secrets.EMAIL }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          HEADLESS: "true"
-
-      - name: Upload screenshots (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-screenshots
-          path: /tmp/*.png
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with: python-version: '3.11'
+    - name: Install deps
+      run: pip install selenium webdriver-manager requests
+    - name: Run PROOF bot
+      run: python bot.py
+      env:
+        EMAIL: ${{ secrets.EMAIL }}
+        PASSWORD: ${{ secrets.PASSWORD }}
+    - name: Upload ALL PROOF screenshots
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: proof-screenshots-${{ github.run_id }}
+        path: /tmp/*.png
+        retention-days: 7
