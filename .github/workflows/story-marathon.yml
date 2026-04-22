@@ -1,25 +1,48 @@
 name: Story Credit PROOF
+
 on:
-  workflow_dispatch:  # MANUAL ONLY for testing
+  workflow_dispatch:  # manual trigger only
 
 jobs:
   proof:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with: python-version: '3.11'
-    - name: Install deps
-      run: pip install selenium webdriver-manager requests
-    - name: Run PROOF bot
-      run: python bot.py
-      env:
-        EMAIL: ${{ secrets.EMAIL }}
-        PASSWORD: ${{ secrets.PASSWORD }}
-    - name: Upload ALL PROOF screenshots
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: proof-screenshots-${{ github.run_id }}
-        path: /tmp/*.png
-        retention-days: 7
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install selenium webdriver-manager requests
+
+      - name: Run PROOF bot
+        run: python bot.py
+        env:
+          EMAIL: ${{ secrets.EMAIL }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+
+      - name: Upload screenshots (proof)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proof-screenshots-${{ github.run_id }}
+          path: /tmp/*.png
+          retention-days: 7
+
+      - name: Upload logs (important)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-logs-${{ github.run_id }}
+          path: |
+            *.log
+            /tmp/*.log
+          retention-days: 7
