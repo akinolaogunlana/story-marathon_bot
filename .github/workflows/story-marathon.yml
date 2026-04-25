@@ -8,117 +8,159 @@ on:
 jobs:
   fetch-stories:
     runs-on: ubuntu-latest
+
     env:
       SUPABASE_URL: https://zccvawdmicngfqlkxsoc.supabase.co
       SUPABASE_ACCOUNT: akinolaogunlana5@gmail.com
       SUPABASE_TOKEN: ${{ secrets.STORYMINTA_TOKEN }}
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-    - name: Create package.json and install
-      run: |
-        cat > package.json << EOF
-        {
-          "name": "storyminta-bot",
-          "version": "1.0.0",
-          "type": "module",
-          "dependencies": {
-            "node-fetch": "^3.3.2"
-          }
-        }
-        EOF
-        npm install
-
-    - name: Create directories and fetch stories
-      run: |
-        mkdir -p scripts stories
-        cat > scripts/fetch-stories.js << 'EOF'
-        import fs from 'fs/promises';
-        import path from 'path';
-        import fetch from 'node-fetch';
-
-        const SUPABASE_URL = process.env.SUPABASE_URL;
-        const SUPABASE_TOKEN = process.env.SUPABASE_TOKEN;
-
-        async function fetchSitemapStories() {
-          const storiesDir = path.join(process.cwd(), 'stories');
-          await fs.mkdir(storiesDir, { recursive: true });
-          
-          console.log('🔍 Fetching stories from Supabase...');
-          
-          const endpoints = [
-            `${SUPABASE_URL}/functions/v1/sitemap`,
-            `${SUPABASE_URL}/functions/v1/stories`,
-            `${SUPABASE_URL}/functions/v1/latest-stories`,
-            `${SUPABASE_URL}/rest/v1/stories?select=*`,
-          ];
-
-          let totalStories = 0;
-          
-          for (const endpoint of endpoints) {
-            try {
-              console.log(`📡 Checking ${endpoint}`);
-              const response = await fetch(endpoint, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${SUPABASE_TOKEN}`,
-                  'apikey': SUPABASE_TOKEN,
-                  'Content-Type': 'application/json',
-                },
-                timeout: 30000,
-              });
-
-              if (response.ok) {
-                const data = await response.json();
-                const stories = Array.isArray(data) ? data : data.data || data.stories || [];
-                
-                for (const story of stories.slice(0, 10)) { // Limit to 10 per endpoint
-                  const storyId = story.id || story.title?.slice(0, 50) || Date.now();
-                  const storyFile = path.join(storiesDir, `${storyId.replace(/[^a-z0-9]/gi, '_')}.json`);
-                  
-                  await fs.writeFile(storyFile, JSON.stringify({
-                    id: story.id,
-                    title: story.title || story.name,
-                    url: story.url || story.link,
-                    content: story.content || story.excerpt,
-                    published: story.published_at || story.created_at || new Date().toISOString(),
-                    source: endpoint,
-                    raw: story
-                  }, null, 2));
-                  
-                  totalStories++;
-                }
-                console.log(`✅ ${stories.length} stories from ${endpoint}`);
-              } else {
-                console.log(`⚠️  ${endpoint}: ${response.status}`);
-              }
-            } catch (error) {
-              console.log(`⚠️  Skipped ${endpoint}: ${error.message}`);
+      - name: Create package.json and install dependencies
+        run: |
+          cat > package.json << 'EOF'
+          {
+            "name": "storyminta-bot",
+            "version": "1.0.0",
+            "type": "module",
+            "dependencies": {
+              "node-fetch": "^3.3.2"
             }
           }
-          
-          console.log(`🎉 Total: ${totalStories} stories saved`);
-        }
+          EOF
 
-        fetchSitemapStories().catch(console.error);
-        EOF
-        node scripts/fetch-stories.js
+          npm install --no-package-lock
 
-    - name: Commit new stories
-      run: |
-        git config user.name "StoryMinta Bot"
-        git config user.email "${{ env.SUPABASE_ACCOUNT }}"
-        git add stories/
-        if [ -n "$(git status --porcelain)" ]; then
-          git commit -m "🤖 StoryMinta: Added new stories [skip ci]" || echo "No changes"
-          git push || echo "No changes to push"
-        else
-          echo "No new stories"
-        fi
+      - name: Create directories and fetch stories
+        run: |
+          mkdir -p scripts stories
+
+          cat > scripts/fetch-stories.js << 'EOF'
+          import fs from 'fs/promises';
+          import path from 'path';
+          import fetch from 'node-fetch';
+
+          const SUPABASE_URL = process.env.SUPABASE_URL;
+          const SUPABASE_TOKEN = process.env.SUPABASE_TOKEN;
+
+          async function fetchSitemapStories() {
+            const storiesDir = path.join(process.cwd(), 'stories');
+            await fs.mkdir(storiesDir, { recursive: true });
+
+            console.log('🔍 Fetching stories from Supabase...');
+
+            const endpoints = [
+              `${SUPABASE_URL}/functions/v1/sitemap`,
+              `${SUPABASE_URL}/functions/v1/stories`,
+              `${SUPABASE_URL}/functions/v1/latest-stories`,
+              `${SUPABASE_URL}/rest/v1/stories?select=*`
+            ];
+
+            let totalStories = 0;
+
+            for (const endpoint of endpoints) {
+              try {
+                console.log(`📡 Checking ${endpoint}`);
+
+                const response = await fetch(endpoint, {
+                  method: 'GET',
+                  headers: {
+                    'Authorization': `Bearer ${SUPABASE_TOKEN}`,
+                    'apikey': SUPABASE_TOKEN,
+                    'Content-Type': 'application/json'
+                  }
+                });
+
+                if (!response.ok) {
+                  console.log(`⚠️ ${endpoint}: ${response.status}`);
+                  continue;
+                }
+
+                const data = await response.json();
+
+                const stories =
+                  Array.isArray(data)
+                    ? data
+                    : data.data || data.stories || [];
+
+                for (const story of stories.slice(0,10)) {
+
+                  const storyId =
+                    String(
+                      story.id ||
+                      story.title ||
+                      Date.now()
+                    ).replace(/[^a-z0-9]/gi,'_');
+
+                  const filePath =
+                    path.join(
+                      storiesDir,
+                      `${storyId}.json`
+                    );
+
+                  await fs.writeFile(
+                    filePath,
+                    JSON.stringify(
+                      {
+                        id: story.id,
+                        title: story.title || story.name,
+                        url: story.url || story.link,
+                        content: story.content || story.excerpt,
+                        published:
+                          story.published_at ||
+                          story.created_at ||
+                          new Date().toISOString(),
+                        source: endpoint,
+                        raw: story
+                      },
+                      null,
+                      2
+                    )
+                  );
+
+                  totalStories++;
+                }
+
+                console.log(
+                  `✅ ${stories.length} stories from ${endpoint}`
+                );
+
+              } catch (error) {
+                console.log(
+                  `⚠️ Skipped ${endpoint}: ${error.message}`
+                );
+              }
+            }
+
+            console.log(`🎉 Total stories saved: ${totalStories}`);
+          }
+
+          fetchSitemapStories().catch(err => {
+            console.error(err);
+            process.exit(1);
+          });
+
+          EOF
+
+          node scripts/fetch-stories.js
+
+      - name: Commit new stories
+        run: |
+          git config user.name "StoryMinta Bot"
+          git config user.email "${{ env.SUPABASE_ACCOUNT }}"
+
+          git add stories/
+
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "🤖 StoryMinta: Added new stories [skip ci]"
+            git push
+          else
+            echo "No new stories"
+          fi
