@@ -1,24 +1,51 @@
-name: Story Marathon v14.0
+name: StoryMinta Bot - Fetch Stories from Sitemaps
+
 on:
   schedule:
-    - cron: '*/30 * * * *'  # Every 30min
-  workflow_dispatch:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Manual trigger
 
 jobs:
-  marathon:
+  fetch-stories:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    env:
+      SUPABASE_URL: https://zccvawdmicngfqlkxsoc.supabase.co
+      SUPABASE_ACCOUNT: akinolaogunlana5@gmail.com
+      SUPABASE_TOKEN: ${{ secrets.STORYMINTA_TOKEN }} # 73466892Ak or API key
+
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with: python-version: '3.11'
-    - run: pip install selenium webdriver-manager requests lxml
-    - run: python bot.py
-      env:
-        EMAIL: ${{ secrets.EMAIL }}
-        PASSWORD: ${{ secrets.PASSWORD }}
-    - uses: actions/upload-artifact@v4
-      if: always()
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
       with:
-        name: marathon-proofs-${{ github.run_id }}
-        path: /tmp/*.png
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Fetch and process stories
+      run: node scripts/fetch-stories.js
+
+    - name: Commit new stories
+      run: |
+        git config user.name "StoryMinta Bot"
+        git config user.email "${{ env.SUPABASE_ACCOUNT }}"
+        git add stories/
+        if git diff --staged --quiet; then
+          echo "No new stories to commit"
+        else
+          git commit -m "🤖 StoryMinta: Added $(git diff --staged --name-only | wc -l) new stories [skip ci]"
+          git push
+        fi
+
+    - name: Notify on failure
+      if: failure()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        fields: repo,message,commit,author,action,eventName,ref,workflow
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
