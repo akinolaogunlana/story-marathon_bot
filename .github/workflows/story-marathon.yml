@@ -1,48 +1,24 @@
-name: Story Credit PROOF
-
+name: Story Marathon v14.0
 on:
-  workflow_dispatch:  # manual trigger only
+  schedule:
+    - cron: '*/30 * * * *'  # Every 30min
+  workflow_dispatch:
 
 jobs:
-  proof:
+  marathon:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    timeout-minutes: 90
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install selenium webdriver-manager requests
-
-      - name: Run PROOF bot
-        run: python bot.py
-        env:
-          EMAIL: ${{ secrets.EMAIL }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-
-      - name: Upload screenshots (proof)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: proof-screenshots-${{ github.run_id }}
-          path: /tmp/*.png
-          retention-days: 7
-
-      - name: Upload logs (important)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bot-logs-${{ github.run_id }}
-          path: |
-            *.log
-            /tmp/*.log
-          retention-days: 7
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with: python-version: '3.11'
+    - run: pip install selenium webdriver-manager requests lxml
+    - run: python bot.py
+      env:
+        EMAIL: ${{ secrets.EMAIL }}
+        PASSWORD: ${{ secrets.PASSWORD }}
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: marathon-proofs-${{ github.run_id }}
+        path: /tmp/*.png
