@@ -135,6 +135,16 @@ jobs:
 
           node scripts/fetch-stories.js
 
+          # Add after "Create directories and fetch stories" step:
+      - name: Debug API Responses
+        env:
+          SUPABASE_TOKEN: ${{ secrets.STORYMINTA_TOKEN }}
+        run: |
+          echo "=== SUPABASE API DEBUG ==="
+          curl -s -H "Authorization: Bearer $SUPABASE_TOKEN" \
+               -H "apikey: $SUPABASE_TOKEN" \
+               "https://zccvawdmicngfqlkxsoc.supabase.co/rest/v1/?select=*" | jq .
+
       - name: Commit new stories
         run: |
           git config user.name "StoryMinta Bot"
