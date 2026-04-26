@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  story-viewer:
+    build: .
+    environment:
+      - EMAIL=${EMAIL}
+      - PASSWORD=${PASSWORD}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    volumes:
+      - ./logs:/app/logs
+    stdin_open: true
+    tty: true
